@@ -4,14 +4,15 @@ pragma solidity >=0.8.0;
 
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
-import './interfaces/INodeLending.sol';
+import './interfaces/INodes.sol';
 import './interfaces/IStake.sol';
+import './interfaces/INodeLending.sol';
 
 contract NodeAuction {
 	using SafeMath for uint256;
 
+	INodes public immutable nodes;
 	INodeLending public immutable lending;
-	IStake public immutable stake;
 	uint256 public immutable startTime;
 	uint256 public immutable candleStartTime;
 	uint256 public immutable endTime;
@@ -28,12 +29,6 @@ contract NodeAuction {
 		uint256 apy;
 	}
 
-	// `voter` => `nodeID` => `Mortgage`
-	mapping(address => mapping(uint256 => Mortgage)) public mortgages;
-
-	// `voter` => `nodeID` => `unrealisedLoans`
-	mapping(address => mapping(uint256 => uint256)) public unrealisedLoans;
-
 	mapping(uint256 => HighestVoter) public highest;
 
 	uint256 public immutable minimumVotes = 2000 * 1e18;
@@ -45,19 +40,16 @@ contract NodeAuction {
 	event CandleEnded(address to, uint256 rands);
 
 	constructor(
-		IStake stake_,
+		INodes nodes_,
 		INodeLending lending_,
 		uint256 startTime_,
 		uint256 candleStartTime_,
 		uint256 endTime_
 	) {
 		require(startTime_ > block.timestamp, 'Auction: invalid startTime');
-		require(
-			startTime_ < candleStartTime_,
-			'Auction: invalid candleStartTime'
-		);
+		require(startTime_ < candleStartTime_, 'Auction: invalid candleStartTime');
 		require(candleStartTime_ < endTime_, 'Auction: invalid endTime');
-		stake = stake_;
+		nodes = nodes_;
 		lending = lending_;
 		startTime = startTime_;
 		candleStartTime = candleStartTime_;
@@ -67,15 +59,7 @@ contract NodeAuction {
 	function voteWithMortgage(uint256 nodeId) external payable validateAuction {
 		require(msg.value >= minimumVotes, 'Auction: not up to minimumVotes.');
 		address to = msg.sender;
-		mortgages[to][nodeId].amount = mortgages[to][nodeId].amount.add(msg.value);
-		// use max apy.
-		if (stake.apy() > mortgages[to][nodeId].apy) {
-			mortgages[to][nodeId].apy = stake.apy();
-		}
-		require(
-			maxLoan(to, nodeId) >= unrealisedLoans[to][nodeId],
-			'Auction: exceed max loans.'
-		);
+		lending.mortgage(to, nodeId, msg.value);
 		update(nodeId);
 
 		emit VoteWithMortgage(to, msg.value);
@@ -83,51 +67,33 @@ contract NodeAuction {
 
 	function voteWithLending(uint256 nodeId, uint256 amount) external validateAuction {
 		address to = msg.sender;
-		uint256 loans = unrealisedLoans[to][nodeId].add(amount);
-		require(maxLoan(to, nodeId) >= loans, 'Auction: exceed max loans.');
-		unrealisedLoans[to][nodeId] = loans;
+		lending.unrealise(to, nodeId, amount);
 		update(nodeId);
-
 		emit VoteWithLending(to, amount);
 	}
 
 	function votes(address to, uint256 nodeId) public view returns (uint256) {
-		uint256 currentMortgages = mortgages[to][nodeId].amount;
-		return currentMortgages.add(unrealisedLoans[to][nodeId]);
+		return lending.mortgageOf(to, nodeId).add(lending.unrealisedLoans(to, nodeId));
 	}
 
 	function withdrawMortgage(uint256 nodeId) external AuctionEnd {
 		address to = msg.sender;
 		require(to != highest[nodeId].account, 'Auction: you are the auction winner');
-		uint256 amount = mortgages[to][nodeId].amount;
+		uint256 amount = lending.mortgageOf(to, nodeId);
 		require(amount > 0, 'AuctionLending: no mortgages.');
 		payable(to).transfer(amount);
-		delete mortgages[to][nodeId];
-		delete unrealisedLoans[to][nodeId];
+		lending.clear(to, nodeId);
 	}
 
-	function manualEnd(uint256 nodeId) external AuctionEnd {
-		realisedBorrow(nodeId);
-	}
-
-	function maxLoan(address to, uint256 nodeId) public view returns (uint256) {
-		uint256 amount = mortgages[to][nodeId].amount;
-		uint256 unrealisedRewardInOneYear = amount
-			.mul(mortgages[to][nodeId].apy)
-			.div(stake.NUMERATOR());
-		return unrealisedRewardInOneYear
-				.add(amount)
-				.div(stake.RMAX())
-				.mul(stake.NUMERATOR());
+	function release(uint256 nodeId) public AuctionEnd {
+		address to = highest[nodeId].account;
+		lending.realise(to, nodeId);
+		nodes.transfer(nodeId, to);
+		nodes.pledge{ value: lending.mortgageOf(to, nodeId) }(nodeId, to);
 	}
 
 	function isEnded() external view returns (bool) {
 		return block.timestamp > endTime || isCandleEnded;
-	}
-
-	function realisedBorrow(uint256 nodeId) internal {
-		address to = highest[nodeId].account;
-		lending.borrow(nodeId, unrealisedLoans[to][nodeId]);
 	}
 
 	function update(uint256 nodeId) internal {
@@ -145,15 +111,10 @@ contract NodeAuction {
 
 	function updateCandle(uint256 nodeId) internal {
 		if (block.timestamp >= candleStartTime && block.timestamp < endTime) {
-			bytes32 hash = keccak256(
-				abi.encodePacked(blockhash(block.number), msg.sender)
-			);
-			if (
-				uint256(hash) <
-				0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-			) {
+			bytes32 hash = keccak256(abi.encodePacked(blockhash(block.number), msg.sender));
+			if (uint256(hash) < 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff) {
 				isCandleEnded = true;
-				realisedBorrow(nodeId);
+				release(nodeId);
 
 				emit CandleEnded(msg.sender, uint256(hash));
 			}
@@ -161,18 +122,14 @@ contract NodeAuction {
 	}
 
 	modifier validateAuction() {
-		require(
-			block.timestamp >= startTime,
-			'Auction: auction is not started'
-		);
+		require(block.timestamp >= startTime, 'Auction: auction is not started');
 		require(block.timestamp < endTime, 'Auction: auction is ended');
 		require(!isCandleEnded, 'Auction: candle ended.');
 		_;
 	}
 
 	modifier AuctionEnd() {
-		require(!isCandleEnded, 'Auction: candle ended.');
-		require(block.timestamp >= endTime, 'Auction: auction is not ended');
+		require(isCandleEnded || block.timestamp >= endTime, 'Auction: auction is not ended');
 		_;
 	}
 }

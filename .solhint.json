@@ -26,6 +26,7 @@
 		"not-rely-on-block-hash": "off",
 		"no-inline-assembly": "off",
 		"avoid-low-level-calls": "off",
+		"reentrancy": "off",
 		"reason-string": [
 			"warn",
 			{

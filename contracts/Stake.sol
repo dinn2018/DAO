@@ -36,14 +36,15 @@ contract Stake is IStake, Ownable {
 
 	IStakeReward public immutable reward;
 
-	constructor(
-		address owner,
-		ILending lending_,
-		IStakeReward reward_
-	) {
+	constructor(address owner, IStakeReward reward_) {
 		transferOwnership(owner);
-		lending = lending_;
 		reward = reward_;
+	}
+
+	function setLending(ILending lending_) external onlyOwner {
+		if (address(lending) == address(0)) {
+			lending = lending_;
+		}
 	}
 
 	function deposit() external payable {
@@ -78,10 +79,6 @@ contract Stake is IStake, Ownable {
 		withdrawReward(reward.realised(to));
 	}
 
-	function transferLending(ILending lending_) external onlyOwner {
-		lending = lending_;
-	}
-
 	function apy() public view override returns (uint256) {
 		return U().mul(m()).add(b()).div(NUMERATOR);
 	}
@@ -100,7 +97,9 @@ contract Stake is IStake, Ownable {
 		} else if (u < NUMERATOR.mul(9)) {
 			return 0;
 		} else {
-			return RMAX.sub(uint256(2).mul(NUMERATOR).div(10)).div(NUMERATOR.div(10));
+			uint256 dot1 = NUMERATOR.div(10);
+			uint256 dot2 = dot1.mul(2);
+			return RMAX.sub(dot2).div(dot1);
 		}
 	}
 

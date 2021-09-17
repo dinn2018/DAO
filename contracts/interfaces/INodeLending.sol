@@ -6,8 +6,20 @@ import './ILending.sol';
 
 interface INodeLending is ILending {
 
-	function borrow(uint256 nodeId, uint256 loan) external;
+	function mortgage(address to, uint256 nodeId, uint256 amount) external;
+	
+	function clear(address to, uint256 nodeId) external;
 
-	function repayment(uint256 nodeId) external payable;
+	function unrealise(address to, uint256 nodeId, uint256 amount) external;
+
+	function realise(address to, uint256 nodeId) external;
+
+	function repayment(address to, uint256 nodeId) external payable;
+
+	function mortgageOf(address to, uint256 nodeId) external view returns (uint256);
+
+	function unrealisedLoans(address to, uint256 nodeId) external view returns (uint256);
+
+	function realisedLoans(address to, uint256 nodeId) external view returns (uint256);
 
 }

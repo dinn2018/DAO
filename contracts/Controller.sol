@@ -2,14 +2,15 @@
 
 pragma solidity >=0.8.0;
 
-import './interfaces/IController.sol';
+import './access/NodeAuthority.sol';
+import './access/LendingAuthority.sol';
 
-contract Controller is IController {
+import './NodeController.sol';
 
-	uint256 public override lockTime;
+contract Controller is NodeController, NodeAuthority, LendingAuthority {
 
-	function setLockTime(uint256 lockTime_) external {
-		lockTime = lockTime_;
+	constructor(address newOwner) {
+		transferOwnership(newOwner);
 	}
 
 }
