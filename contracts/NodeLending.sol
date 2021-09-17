@@ -47,7 +47,7 @@ contract NodeLending is INodeLending, Ownable {
 		uint256 nodeId,
 		uint256 amount
 	) external override {
-		require(nodes.exists(nodeId), 'NodeLending: node not found.');
+		require(nodes.exists(nodeId), 'NodeLending: nonexistent node.');
 		require(nodes.ownerOf(nodeId) == address(nodes) || nodes.ownerOf(nodeId) == to, 'NodeLending: invalid node owner.');
 		require(realisedLoans[to][nodeId] == 0, 'NodeLending: loan not paid.');
 		require(lendingAuthority.canMortgage(msg.sender), 'NodeLending: no auth to mortgage.');
@@ -59,7 +59,7 @@ contract NodeLending is INodeLending, Ownable {
 	}
 
 	function clear(address to, uint256 nodeId) external override {
-		require(lendingAuthority.canMortgage(msg.sender), 'NodeLending: no auth to withdraw mortgage.');
+		require(lendingAuthority.canMortgage(msg.sender), 'NodeLending: no auth to clear mortgage.');
 		delete mortgages[to][nodeId];
 		delete unrealisedLoans[to][nodeId];
 	}
@@ -69,7 +69,9 @@ contract NodeLending is INodeLending, Ownable {
 		uint256 nodeId,
 		uint256 amount
 	) external override {
-		require(lendingAuthority.canBorrow(msg.sender), 'NodeLending: no auth to borrow.');
+		require(nodes.exists(nodeId), 'NodeLending: nonexistent node.');
+		require(nodes.ownerOf(nodeId) == address(nodes), 'NodeLending: node has been owned.');
+		require(lendingAuthority.canLend(msg.sender), 'NodeLending: no auth to borrow.');
 		require(realisedLoans[to][nodeId] == 0, 'NodeLending: loan not paid.');
 		uint256 loan = unrealisedLoans[to][nodeId].add(amount);
 		require(maxLoan(to, nodeId) >= loan, 'NodeLending: exceed max loans.');
@@ -77,7 +79,9 @@ contract NodeLending is INodeLending, Ownable {
 	}
 
 	function realise(address to, uint256 nodeId) external override {
-		require(lendingAuthority.canBorrow(msg.sender), 'NodeLending: no auth to borrow.');
+		require(nodes.exists(nodeId), 'NodeLending: nonexistent node.');
+		require(nodes.ownerOf(nodeId) == address(nodes), 'NodeLending: node has been owned.');
+		require(lendingAuthority.canLend(msg.sender), 'NodeLending: no auth to borrow.');
 		uint256 loan = unrealisedLoans[to][nodeId];
 		realisedLoans[to][nodeId] = realisedLoans[to][nodeId].add(loan);
 		totalNodeLoans = totalNodeLoans.add(loan);

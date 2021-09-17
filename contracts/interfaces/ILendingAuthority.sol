@@ -6,7 +6,7 @@ import './IAuthority.sol';
 
 interface ILendingAuthority is IAuthority {
 
-	function canBorrow(address to) external view returns (bool);
+	function canLend(address to) external view returns (bool);
 
 	function canMortgage(address to) external view returns (bool);
 
