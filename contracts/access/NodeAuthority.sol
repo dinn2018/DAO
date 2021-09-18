@@ -11,14 +11,22 @@ contract NodeAuthority is Authority, INodeAuthority {
 	}
 
 	function canRemoveNode(address to) external view override returns (bool) {
-		return can(to, 1);
+		return can(to, 10);
 	}
 
-	function canTransferNode(address to) external view override returns (bool) {
-		return can(to, 2);
+	function canMortgageNode(address to) external view override returns (bool) {
+		return can(to, 20);
 	}
 
 	function canPunishNode(address to) external view override returns (bool) {
-		return can(to, 3);
+		return can(to, 30);
+	}
+
+	function canExitNode(address to) external view override returns (bool) {
+		return can(to, 40);
+	}
+
+	function canEndNode(address to) external view override returns (bool) {
+		return can(to, 50);
 	}
 }

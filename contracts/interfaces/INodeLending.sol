@@ -14,7 +14,7 @@ interface INodeLending is ILending {
 
 	function realise(address to, uint256 nodeId) external;
 
-	function repayment(address to, uint256 nodeId) external payable;
+	function mortgageEnd(address to, uint256 nodeId) external;
 
 	function mortgageOf(address to, uint256 nodeId) external view returns (uint256);
 

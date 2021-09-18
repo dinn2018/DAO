@@ -14,17 +14,6 @@ contract Nodes is INodes, Ownable {
 
 	using EnumerableNodeId for EnumerableNodeId.Map;
 
-	struct Meta {
-		uint256 minPledge;
-		bytes32 region;
-	}
-
-	struct Node {
-		Meta meta;
-		uint256 pledge;
-		address owner;
-	}
-
 	mapping(address => EnumerableNodeId.Map) private balances;
 
 	mapping(uint256 => Node) public nodes;
@@ -37,9 +26,11 @@ contract Nodes is INodes, Ownable {
 
 	event Remove(address indexed from, uint256 indexed nodeId);
 
-	event Transfer(address indexed from, address indexed to, uint256 indexed nodeId);
-
 	event Punish(uint256 indexed nodeId, uint256 amount);
+
+	event Mortgage(address indexed from, address indexed to, uint256 indexed nodeId, uint256 pledge);
+
+	event MortgageEnd(address indexed from, address indexed to, uint256 indexed nodeId, uint256 pledge);
 
 	event Pledge(address indexed from, address indexed to, uint256 indexed nodeId, uint256 pledge);
 
@@ -51,20 +42,20 @@ contract Nodes is INodes, Ownable {
 
 	function add(
 		uint256 nodeId,
-		uint256 minPledge,
+		uint256 period,
 		bytes32 region
 	) external override onlyOwner {
 		require(authority.canAddNode(msg.sender), 'Nodes: no auth to add node.');
-		require(!exists(nodeId), 'Nodes: nodeId exsists.');
+		require(!exists(nodeId), 'Nodes: node exsists.');
 
 		balances[address(this)].set(nodeId, nodeId);
-		nodes[nodeId].meta = Meta(minPledge, region);
+		nodes[nodeId].meta = Meta(period, region);
 		nodes[nodeId].owner = address(this);
 
 		emit Add(address(0), address(this), nodeId);
 	}
 
-	function remove(uint256 nodeId) external override onlyOwner {
+	function remove(uint256 nodeId) external override validataNode(nodeId) onlyOwner {
 		require(authority.canRemoveNode(msg.sender), 'Nodes: no auth to remove node.');
 		require(nodes[nodeId].owner == address(this), 'Nodes: node not exited.');
 		balances[address(this)].remove(nodeId);
@@ -73,37 +64,77 @@ contract Nodes is INodes, Ownable {
 		emit Remove(address(this), nodeId);
 	}
 
-	function transfer(uint256 nodeId, address to) external override onlyOwner {
-		require(authority.canTransferNode(msg.sender), 'Nodes: no auth to transfer node.');
-		_transfer(address(this), to, nodeId);
-
-		emit Transfer(address(this), to, nodeId);
-	}
-
-	function punish(uint256 nodeId, uint256 amount) external override onlyOwner {
-		require(authority.canPunishNode(msg.sender), 'Nodes: no auth to punish node.');
-		require(nodes[nodeId].pledge > amount, 'Nodes: not enough pledge to punish.');
-		nodes[nodeId].pledge = nodes[nodeId].pledge.sub(amount);
-
-		emit Punish(nodeId, amount);
-	}
-
-	function pledge(uint256 nodeId, address to) external payable override onlyOwner {
-		require(exists(nodeId), 'Nodes: node not found.');
-		require(nodes[nodeId].owner != address(this), 'Nodes: node not assigned');
-
+	// mortgage pleage and get node.
+	function mortgage(uint256 nodeId, address mortgager) external payable override validataNode(nodeId) {
+		require(authority.canMortgageNode(msg.sender), 'Nodes: no auth to mortgage node.');
+		require(nodes[nodeId].owner == address(this), 'Nodes: node has been assigned');
+		_transfer(address(this), mortgager, nodeId);
 		nodes[nodeId].pledge = nodes[nodeId].pledge.add(msg.value);
-		emit Pledge(msg.sender, to, nodeId, msg.value);
+		nodes[nodeId].mortgageStartBlock = block.number;
+
+		emit Mortgage(msg.sender, mortgager, nodeId, msg.value);
 	}
 
-	function exit(address from, uint256 nodeId) external override onlyOwner {
-		_transfer(from, address(this), nodeId);
+	// punish node.
+	function punish(uint256 nodeId, uint256 amount) external override validataNode(nodeId) {
+		require(authority.canPunishNode(msg.sender), 'Nodes: no auth to punish node.');
+		uint256 punished = amount > nodes[nodeId].pledge? amount : nodes[nodeId].pledge;
+		nodes[nodeId].pledge = nodes[nodeId].pledge.sub(punished);
+		// burned
+		payable(address(0)).transfer(punished);
 
-		emit Exit(from, address(this), nodeId);
+		emit Punish(nodeId, punished);
 	}
 
-	function ownerOf(uint256 nodeId) external view override returns (address) {
+	// add pledge
+	function pledge(uint256 nodeId, address mortgager) external payable override validataNode(nodeId) {
+		require(nodes[nodeId].owner != address(this), 'Nodes: node not assigned');
+		nodes[nodeId].pledge = nodes[nodeId].pledge.add(msg.value);
+
+		emit Pledge(msg.sender, mortgager, nodeId, msg.value);
+	}
+
+	// node exit.
+	function exit(uint256 nodeId, uint256 burned) external override validataNode(nodeId) {
+		require(authority.canExitNode(msg.sender), 'Nodes: no auth to exit.');
+		require(mortgageEndBlock(nodeId) >= block.number, 'Nodes: out of mortgage periord.');
+		address owner = ownerOf(nodeId);
+		_transfer(owner, address(this), nodeId);
+		nodes[nodeId].mortgageStartBlock = 0;
+		nodes[nodeId].pledge = nodes[nodeId].pledge.sub(burned);
+		if (burned > 0) {
+			payable(address(0)).transfer(burned);
+		}
+		if (nodes[nodeId].pledge > 0) {
+			payable(owner).transfer(nodes[nodeId].pledge);
+		}
+		emit Exit(owner, address(this), nodeId);
+	}
+
+	function end(uint256 nodeId) external override validataNode(nodeId) {
+		require(authority.canEndNode(msg.sender), 'Nodes: no auth to end.');
+		address owner = nodes[nodeId].owner;
+		require(block.number > mortgageEndBlock(nodeId), 'Nodes: node is not out of mortgage periord.');
+		_transfer(owner, address(this), nodeId);
+		nodes[nodeId].mortgageStartBlock = 0;
+		payable(owner).transfer(nodes[nodeId].pledge);
+
+		emit MortgageEnd(owner, address(this), nodeId, nodes[nodeId].pledge);
+	}
+
+	function mortgageEndBlock(uint256 nodeId) public view validataNode(nodeId) returns(uint256) {
+		Node memory node = nodes[nodeId];
+		require(node.owner != address(this) && node.mortgageStartBlock != 0, 'Nodes: node is not mortgaged');
+		return node.mortgageStartBlock.add(node.meta.period);
+	}
+
+	function ownerOf(uint256 nodeId) public view override returns (address) {
 		return nodes[nodeId].owner;
+	}
+
+	function get(uint256 nodeId) external view override returns (Node memory) {
+		require(exists(nodeId), 'Nodes: nonexistent node.');
+		return nodes[nodeId];
 	}
 
 	function balanceOf(address from) external view returns (uint256) {
@@ -113,10 +144,6 @@ contract Nodes is INodes, Ownable {
 	function at(address from, uint256 index) external view returns (uint256, Node memory) {
 		(uint256 key, uint256 nodeId) = balances[from].at(index);
 		return (key, nodes[nodeId]);
-	}
-
-	function get(uint256 nodeId) external view returns (Node memory) {
-		return nodes[nodeId];
 	}
 
 	function exists(uint256 nodeId) public view override returns (bool) {
@@ -135,5 +162,10 @@ contract Nodes is INodes, Ownable {
 		balances[from].remove(nodeId);
 		balances[to].set(nodeId, nodeId);
 		nodes[nodeId].owner = to;
+	}
+
+	modifier validataNode(uint256 nodeId) {
+		require(exists(nodeId), 'Nodes: node not found.');
+		_;
 	}
 }

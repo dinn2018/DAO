@@ -6,19 +6,13 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
 import './interfaces/INodes.sol';
-import './interfaces/IStake.sol';
 import './interfaces/INodeLending.sol';
-import './interfaces/ILendingAuthority.sol';
+import './interfaces/IController.sol';
 
 contract NodeLending is INodeLending, Ownable {
 	using SafeMath for uint256;
 
-	struct Mortgage {
-		uint256 amount;
-		uint256 apy;
-	}
-
-	mapping(address => mapping(uint256 => Mortgage)) public mortgages;
+	mapping(address => mapping(uint256 => uint256)) public mortgages;
 
 	mapping(address => mapping(uint256 => uint256)) public override unrealisedLoans;
 
@@ -26,19 +20,12 @@ contract NodeLending is INodeLending, Ownable {
 
 	uint256 private totalNodeLoans;
 
-	IStake public immutable stake;
-
 	INodes public immutable nodes;
 
-	ILendingAuthority public immutable lendingAuthority;
+	IController public immutable controller;
 
-	constructor(
-		ILendingAuthority lendingAuthority_,
-		IStake stake_,
-		INodes nodes_
-	) {
-		lendingAuthority = lendingAuthority_;
-		stake = stake_;
+	constructor(IController controller_, INodes nodes_) {
+		controller = controller_;
 		nodes = nodes_;
 	}
 
@@ -46,57 +33,46 @@ contract NodeLending is INodeLending, Ownable {
 		address to,
 		uint256 nodeId,
 		uint256 amount
-	) external override {
-		require(nodes.exists(nodeId), 'NodeLending: nonexistent node.');
-		require(nodes.ownerOf(nodeId) == address(nodes) || nodes.ownerOf(nodeId) == to, 'NodeLending: invalid node owner.');
-		require(realisedLoans[to][nodeId] == 0, 'NodeLending: loan not paid.');
-		require(lendingAuthority.canMortgage(msg.sender), 'NodeLending: no auth to mortgage.');
-		mortgages[to][nodeId].amount = mortgages[to][nodeId].amount.add(amount);
-		// use max apy to ensure `unrealisedLoans` not exceed `maxLoan`.
-		if (stake.apy() > mortgages[to][nodeId].apy) {
-			mortgages[to][nodeId].apy = stake.apy();
-		}
-	}
-
-	function clear(address to, uint256 nodeId) external override {
-		require(lendingAuthority.canMortgage(msg.sender), 'NodeLending: no auth to clear mortgage.');
-		delete mortgages[to][nodeId];
-		delete unrealisedLoans[to][nodeId];
+	) external override validataNode(nodeId) {
+		require(controller.canMortgageNode(msg.sender), 'NodeLending: no auth to mortgage.');
+		require(nodes.ownerOf(nodeId) == address(nodes), 'NodeLending: invalid node owner.');
+		mortgages[to][nodeId] = mortgages[to][nodeId].add(amount);
 	}
 
 	function unrealise(
 		address to,
 		uint256 nodeId,
 		uint256 amount
-	) external override {
-		require(nodes.exists(nodeId), 'NodeLending: nonexistent node.');
+	) external override validataNode(nodeId) {
 		require(nodes.ownerOf(nodeId) == address(nodes), 'NodeLending: node has been owned.');
-		require(lendingAuthority.canLend(msg.sender), 'NodeLending: no auth to borrow.');
+		require(controller.canLend(msg.sender), 'NodeLending: no auth to borrow.');
 		require(realisedLoans[to][nodeId] == 0, 'NodeLending: loan not paid.');
 		uint256 loan = unrealisedLoans[to][nodeId].add(amount);
 		require(maxLoan(to, nodeId) >= loan, 'NodeLending: exceed max loans.');
 		unrealisedLoans[to][nodeId] = loan;
 	}
 
-	function realise(address to, uint256 nodeId) external override {
-		require(nodes.exists(nodeId), 'NodeLending: nonexistent node.');
+	function realise(address to, uint256 nodeId) external override validataNode(nodeId) {
 		require(nodes.ownerOf(nodeId) == address(nodes), 'NodeLending: node has been owned.');
-		require(lendingAuthority.canLend(msg.sender), 'NodeLending: no auth to borrow.');
+		require(controller.canLend(msg.sender), 'NodeLending: no auth to borrow.');
 		uint256 loan = unrealisedLoans[to][nodeId];
+		unrealisedLoans[to][nodeId] = unrealisedLoans[to][nodeId].sub(loan);
 		realisedLoans[to][nodeId] = realisedLoans[to][nodeId].add(loan);
 		totalNodeLoans = totalNodeLoans.add(loan);
 	}
 
-	// TODO: repayment withdrawn or direct transfer.
-	function repayment(address to, uint256 nodeId) external payable override {
+	function clear(address to, uint256 nodeId) external override validataNode(nodeId) {
+		require(controller.canMortgageNode(msg.sender), 'NodeLending: no auth to clear mortgage.');
+		delete mortgages[to][nodeId];
+		delete unrealisedLoans[to][nodeId];
+	}
+
+	function mortgageEnd(address to, uint256 nodeId) external override validataNode(nodeId) {
+		require(controller.canEndNode(msg.sender), 'NodeLending: no auth to end mortgage.');
 		uint256 loan = realisedLoans[to][nodeId];
-		uint256 paid = msg.value;
-		if (msg.value > loan) {
-			payable(msg.sender).transfer(msg.value.sub(loan));
-			paid = loan;
-		}
-		realisedLoans[to][nodeId] = realisedLoans[to][nodeId].sub(paid);
-		totalNodeLoans = totalNodeLoans.sub(paid);
+		totalNodeLoans = totalNodeLoans.sub(loan);
+		realisedLoans[to][nodeId] = 0;
+		mortgages[to][nodeId] = 0;
 	}
 
 	function totalLoans() external view override returns (uint256) {
@@ -104,12 +80,18 @@ contract NodeLending is INodeLending, Ownable {
 	}
 
 	function mortgageOf(address to, uint256 nodeId) external view override returns (uint256) {
-		return mortgages[to][nodeId].amount;
+		return mortgages[to][nodeId];
 	}
 
 	function maxLoan(address to, uint256 nodeId) public view returns (uint256) {
-		uint256 amount = mortgages[to][nodeId].amount;
-		uint256 unrealisedRewardInOneYear = amount.mul(mortgages[to][nodeId].apy).div(stake.NUMERATOR());
-		return unrealisedRewardInOneYear.add(amount).div(stake.RMAX()).mul(stake.NUMERATOR());
+		uint256 amount = mortgages[to][nodeId];
+		uint256 unrealisedRewardInOneYear = controller.perblockReward().mul(nodes.get(nodeId).meta.period);
+		return unrealisedRewardInOneYear.add(amount).div(controller.RMAX()).mul(controller.NUMERATOR());
 	}
+
+	modifier validataNode(uint256 nodeId) {
+		require(nodes.exists(nodeId), 'Nodes: node not found.');
+		_;
+	}
+
 }

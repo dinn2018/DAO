@@ -7,11 +7,6 @@ import '../interfaces/ILendingAuthority.sol';
 
 contract LendingAuthority is Authority, ILendingAuthority {
 	function canLend(address to) external view override returns (bool) {
-		return can(to, 4);
+		return can(to, 60);
 	}
-
-	function canMortgage(address to) external view override returns (bool) {
-		return can(to, 5);
-	}
-
 }

@@ -6,10 +6,10 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
 import './interfaces/IStakeReward.sol';
-import './interfaces/IStake.sol';
 import './interfaces/ILending.sol';
+import './interfaces/IParams.sol';
 
-contract Stake is IStake, Ownable {
+contract Stake is Ownable {
 	using SafeMath for uint256;
 
 	struct Deposit {
@@ -30,21 +30,15 @@ contract Stake is IStake, Ownable {
 
 	ILending public lending;
 
-	uint256 public immutable override NUMERATOR = 1e12;
-
-	uint256 public immutable override RMAX = 15 * 1e12;
-
 	IStakeReward public immutable reward;
 
-	constructor(address owner, IStakeReward reward_) {
-		transferOwnership(owner);
-		reward = reward_;
-	}
+	IParams public immutable params;
 
-	function setLending(ILending lending_) external onlyOwner {
-		if (address(lending) == address(0)) {
-			lending = lending_;
-		}
+	constructor(address owner, IParams params_, ILending lending_, IStakeReward reward_) {
+		transferOwnership(owner);
+		params = params_;
+		reward = reward_;
+		lending = lending_;
 	}
 
 	function deposit() external payable {
@@ -79,38 +73,38 @@ contract Stake is IStake, Ownable {
 		withdrawReward(reward.realised(to));
 	}
 
-	function apy() public view override returns (uint256) {
-		return U().mul(m()).add(b()).div(NUMERATOR);
+	function apy() public view returns (uint256) {
+		return U().mul(m()).add(b()).div(numerator());
 	}
 
 	function U() public view returns (uint256) {
 		if (totalDeposits == 0 || totalLoans() == 0) {
 			return 0;
 		}
-		return totalLoans().mul(NUMERATOR).div(totalDeposits);
+		return totalLoans().mul(numerator()).div(totalDeposits);
 	}
 
 	function m() public view returns (uint256) {
 		uint256 u = U();
-		if (u < NUMERATOR.mul(5)) {
-			return uint256(4).mul(NUMERATOR).div(10);
-		} else if (u < NUMERATOR.mul(9)) {
+		if (u < numerator().mul(5)) {
+			return uint256(4).mul(numerator()).div(10);
+		} else if (u < numerator().mul(9)) {
 			return 0;
 		} else {
-			uint256 dot1 = NUMERATOR.div(10);
+			uint256 dot1 = numerator().div(10);
 			uint256 dot2 = dot1.mul(2);
-			return RMAX.sub(dot2).div(dot1);
+			return rmax().sub(dot2).div(dot1);
 		}
 	}
 
 	function b() public view returns (uint256) {
 		uint256 u = U();
-		if (u < NUMERATOR.mul(5)) {
+		if (u < numerator().mul(5)) {
 			return 0;
-		} else if (u < NUMERATOR.mul(9)) {
-			return uint256(2).mul(NUMERATOR).div(10);
+		} else if (u < numerator().mul(9)) {
+			return uint256(2).mul(numerator()).div(10);
 		} else {
-			return m().sub(RMAX);
+			return m().sub(rmax());
 		}
 	}
 
@@ -118,7 +112,7 @@ contract Stake is IStake, Ownable {
 		require(deposits[to].lastUpdateTime != 0, 'AuctionLending: invalid deposit time.');
 		require(block.timestamp > deposits[to].lastUpdateTime, 'AuctionLending: past block.');
 		uint256 interval = block.timestamp.sub(deposits[to].lastUpdateTime);
-		amount = deposits[to].amount.mul(apy()).mul(interval).div(NUMERATOR).div(365 days);
+		amount = deposits[to].amount.mul(apy()).mul(interval).div(numerator()).div(365 days);
 	}
 
 	function availableReward(address to) public view returns (uint256) {
@@ -127,6 +121,14 @@ contract Stake is IStake, Ownable {
 
 	function totalLoans() public view returns (uint256) {
 		return lending.totalLoans();
+	}
+
+	function numerator() public view returns (uint256) {
+		return params.NUMERATOR();
+	}
+
+	function rmax() public view returns (uint256) {
+		return params.RMAX();
 	}
 
 	modifier hasDeposit() {

@@ -10,8 +10,12 @@ interface INodeAuthority is IAuthority{
 
 	function canRemoveNode(address to) external view returns (bool);
 
-	function canTransferNode(address to) external view returns (bool);
+	function canMortgageNode(address to) external view returns (bool);
 
 	function canPunishNode(address to) external view returns (bool);
+
+	function canExitNode(address to) external view returns (bool);
+
+	function canEndNode(address to) external view returns (bool);
 
 }

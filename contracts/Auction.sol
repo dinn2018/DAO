@@ -5,10 +5,9 @@ pragma solidity >=0.8.0;
 import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
 import './interfaces/INodes.sol';
-import './interfaces/IStake.sol';
 import './interfaces/INodeLending.sol';
 
-contract NodeAuction {
+contract Auction {
 	using SafeMath for uint256;
 
 	INodes public immutable nodes;
@@ -88,8 +87,7 @@ contract NodeAuction {
 	function release(uint256 nodeId) public AuctionEnd {
 		address to = highest[nodeId].account;
 		lending.realise(to, nodeId);
-		nodes.transfer(nodeId, to);
-		nodes.pledge{ value: lending.mortgageOf(to, nodeId) }(nodeId, to);
+		nodes.mortgage{ value: lending.mortgageOf(to, nodeId) }(nodeId, to);
 	}
 
 	function isEnded() external view returns (bool) {
@@ -98,7 +96,7 @@ contract NodeAuction {
 
 	function update(uint256 nodeId) internal {
 		updateHighestVotes(msg.sender, nodeId);
-		updateCandle(nodeId);
+		// updateCandle(nodeId);
 	}
 
 	function updateHighestVotes(address to, uint256 nodeId) internal {
