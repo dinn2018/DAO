@@ -111,18 +111,7 @@ contract Nodes is INodes, Ownable {
 		emit Exit(owner, address(this), nodeId);
 	}
 
-	function end(uint256 nodeId) external override validataNode(nodeId) {
-		require(authority.canEndNode(msg.sender), 'Nodes: no auth to end.');
-		address owner = nodes[nodeId].owner;
-		require(block.number > mortgageEndBlock(nodeId), 'Nodes: node is not out of mortgage periord.');
-		_transfer(owner, address(this), nodeId);
-		nodes[nodeId].mortgageStartBlock = 0;
-		payable(owner).transfer(nodes[nodeId].pledge);
-
-		emit MortgageEnd(owner, address(this), nodeId, nodes[nodeId].pledge);
-	}
-
-	function mortgageEndBlock(uint256 nodeId) public view validataNode(nodeId) returns(uint256) {
+	function mortgageEndBlock(uint256 nodeId) public view override validataNode(nodeId) returns(uint256) {
 		Node memory node = nodes[nodeId];
 		require(node.owner != address(this) && node.mortgageStartBlock != 0, 'Nodes: node is not mortgaged');
 		return node.mortgageStartBlock.add(node.meta.period);

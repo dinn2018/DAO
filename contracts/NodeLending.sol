@@ -67,8 +67,9 @@ contract NodeLending is INodeLending, Ownable {
 		delete unrealisedLoans[to][nodeId];
 	}
 
-	function mortgageEnd(address to, uint256 nodeId) external override validataNode(nodeId) {
+	function mortgageEnd(uint256 nodeId) external override validataNode(nodeId) {
 		require(controller.canEndNode(msg.sender), 'NodeLending: no auth to end mortgage.');
+		address to = nodes.ownerOf(nodeId);
 		uint256 loan = realisedLoans[to][nodeId];
 		totalNodeLoans = totalNodeLoans.sub(loan);
 		realisedLoans[to][nodeId] = 0;

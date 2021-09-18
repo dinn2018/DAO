@@ -79,7 +79,7 @@ contract Auction {
 		address to = msg.sender;
 		require(to != highest[nodeId].account, 'Auction: you are the auction winner');
 		uint256 amount = lending.mortgageOf(to, nodeId);
-		require(amount > 0, 'AuctionLending: no mortgages.');
+		require(amount > 0, 'Auction: no mortgages.');
 		payable(to).transfer(amount);
 		lending.clear(to, nodeId);
 	}

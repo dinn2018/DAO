@@ -38,24 +38,18 @@ abstract contract NodeController is INodeController, Ownable {
 		uint256 leftPledge = nodes.get(nodeId).pledge;
 		if (loan >= leftPledge) {
 			nodes.exit(nodeId, leftPledge);
-			lending.mortgageEnd(owner, nodeId);
+			lending.mortgageEnd(nodeId);
 		}
 	}
 
 	function exitNode(uint256 nodeId) external override {
 		address owner = nodes.ownerOf(nodeId);
-		require(msg.sender == owner, 'NodeController: not the node owner');
+		require(msg.sender == owner || nodes.mortgageEndBlock(nodeId) < block.number, 'NodeController: can not exit.');
 		uint256 loan = lending.realisedLoans(owner, nodeId);
 		uint256 pledge = nodes.get(nodeId).pledge;
 		require(pledge >= loan, 'NodeController: not enough pledge to pay loan.');
 		nodes.exit(nodeId, loan);
-		lending.mortgageEnd(owner, nodeId);
-	}
-
-	function endNode(uint256 nodeId) external override {
-		nodes.end(nodeId);
-		address owner = nodes.ownerOf(nodeId);
-		lending.mortgageEnd(owner, nodeId);
+		lending.mortgageEnd(nodeId);
 	}
 
 }

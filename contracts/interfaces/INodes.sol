@@ -28,7 +28,7 @@ interface INodes {
 
 	function exit(uint256 nodeId, uint256 burned) external;
 
-	function end(uint256 nodeId) external;
+	function mortgageEndBlock(uint256 nodeId) external view returns(uint256);
 
 	function exists(uint256 nodeId) external view returns (bool);
 
