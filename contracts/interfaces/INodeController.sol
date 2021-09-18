@@ -12,6 +12,4 @@ interface INodeController {
 
 	function exitNode(uint256 nodeId) external;
 
-	function endNode(uint256 nodeId) external;
-
 }
