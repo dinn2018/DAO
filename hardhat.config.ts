@@ -12,7 +12,7 @@ if (process.env.HARDHAT_FORK) {
 }
 
 const accounts = {
-	mnemonic: process.env.MNEMONIC || 'test test test test test test test test test test test junk',
+	mnemonic: process.env.MNEMONIC || 'test test test test test test test test test test test test',
 }
 
 const config: HardhatUserConfig = {
@@ -42,7 +42,12 @@ const config: HardhatUserConfig = {
 		},
 		localhost: {
 			url: 'http://127.0.0.1:8545',
-			accounts,
+			live: true,
+			loggingEnabled: true,
+			mining: {
+				interval: 5,
+				auto: true
+			}
 		},
 		hardhat: {
 			forking: {

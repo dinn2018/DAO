@@ -26,7 +26,4 @@ contract NodeAuthority is Authority, INodeAuthority {
 		return can(to, 40);
 	}
 
-	function canEndNode(address to) external view override returns (bool) {
-		return can(to, 50);
-	}
 }

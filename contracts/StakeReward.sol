@@ -15,6 +15,10 @@ contract StakeReward is IStakeReward, Ownable {
 
 	mapping(address => uint256) public override realised;
 
+	constructor(address newOwner) {
+		transferOwnership(newOwner);
+	}
+
 	function transferMinter(address minter_) external onlyOwner {
 		minter = minter_;
 	}

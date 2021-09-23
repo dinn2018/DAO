@@ -7,16 +7,16 @@ import '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
 import './interfaces/IParams.sol';
 
-contract Params is Ownable, IParams { 
+abstract contract Params is Ownable, IParams { 
 
-	uint256 public override perblockReward;
+	uint256 public override perSecReward = 1e16;
 
 	uint256 public override RMAX = 15e11;
 
 	uint256 public override NUMERATOR = 1e12;
 
-	function setPerBlockReward(uint256 perblockReward_) external onlyOwner {
-		perblockReward = perblockReward_;
+	function setPerSecReward(uint256 perSecReward_) external onlyOwner {
+		perSecReward = perSecReward_;
 	}
 
 }

@@ -16,6 +16,4 @@ interface INodeAuthority is IAuthority{
 
 	function canExitNode(address to) external view returns (bool);
 
-	function canEndNode(address to) external view returns (bool);
-
 }

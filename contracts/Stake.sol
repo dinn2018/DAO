@@ -24,8 +24,6 @@ contract Stake is Ownable {
 
 	mapping(address => Deposit) public deposits;
 
-	mapping(address => uint256) public loans;
-
 	uint256 public totalDeposits;
 
 	ILending public lending;
@@ -80,6 +78,9 @@ contract Stake is Ownable {
 	function U() public view returns (uint256) {
 		if (totalDeposits == 0 || totalLoans() == 0) {
 			return 0;
+		}
+		if (totalLoans() > totalDeposits) {
+			return numerator();
 		}
 		return totalLoans().mul(numerator()).div(totalDeposits);
 	}

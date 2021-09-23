@@ -1,1 +1,6 @@
 import './vrf'
+import './controller'
+import './stake'
+import './auction'
+import './lending'
+import './nodes'

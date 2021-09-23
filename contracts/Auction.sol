@@ -30,7 +30,7 @@ contract Auction {
 
 	mapping(uint256 => HighestVoter) public highest;
 
-	uint256 public immutable minimumVotes = 2000 * 1e18;
+	uint256 public immutable minimumVotes = 1;
 
 	event VoteWithMortgage(address to, uint256 amount);
 
@@ -71,10 +71,6 @@ contract Auction {
 		emit VoteWithLending(to, amount);
 	}
 
-	function votes(address to, uint256 nodeId) public view returns (uint256) {
-		return lending.mortgageOf(to, nodeId).add(lending.unrealisedLoans(to, nodeId));
-	}
-
 	function withdrawMortgage(uint256 nodeId) external AuctionEnd {
 		address to = msg.sender;
 		require(to != highest[nodeId].account, 'Auction: you are the auction winner');
@@ -82,6 +78,10 @@ contract Auction {
 		require(amount > 0, 'Auction: no mortgages.');
 		payable(to).transfer(amount);
 		lending.clear(to, nodeId);
+	}
+
+	function votes(address to, uint256 nodeId) public view returns (uint256) {
+		return lending.mortgageOf(to, nodeId).add(lending.unrealisedLoans(to, nodeId));
 	}
 
 	function release(uint256 nodeId) public AuctionEnd {

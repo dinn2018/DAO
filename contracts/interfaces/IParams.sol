@@ -8,6 +8,6 @@ interface IParams  {
 
 	function NUMERATOR() external view returns (uint256);
 
-	function perblockReward() external view returns (uint256);
+	function perSecReward() external view returns (uint256);
 
 }

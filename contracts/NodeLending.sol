@@ -67,8 +67,8 @@ contract NodeLending is INodeLending, Ownable {
 		delete unrealisedLoans[to][nodeId];
 	}
 
-	function mortgageEnd(uint256 nodeId) external override validataNode(nodeId) {
-		require(controller.canEndNode(msg.sender), 'NodeLending: no auth to end mortgage.');
+	function mortgageExit(uint256 nodeId) external override validataNode(nodeId) {
+		require(controller.canExitNode(msg.sender), 'NodeLending: no auth to end mortgage.');
 		address to = nodes.ownerOf(nodeId);
 		uint256 loan = realisedLoans[to][nodeId];
 		totalNodeLoans = totalNodeLoans.sub(loan);
@@ -86,8 +86,8 @@ contract NodeLending is INodeLending, Ownable {
 
 	function maxLoan(address to, uint256 nodeId) public view returns (uint256) {
 		uint256 amount = mortgages[to][nodeId];
-		uint256 unrealisedRewardInOneYear = controller.perblockReward().mul(nodes.get(nodeId).meta.period);
-		return unrealisedRewardInOneYear.add(amount).div(controller.RMAX()).mul(controller.NUMERATOR());
+		uint256 rewardInPeriod = controller.perSecReward().mul(nodes.get(nodeId).meta.period);
+		return rewardInPeriod.add(amount).div(controller.RMAX()).mul(controller.NUMERATOR());
 	}
 
 	modifier validataNode(uint256 nodeId) {

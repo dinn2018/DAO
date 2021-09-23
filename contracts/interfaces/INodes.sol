@@ -11,7 +11,7 @@ interface INodes {
 
 	struct Node {
 		Meta meta;
-		uint256 mortgageStartBlock;
+		uint256 mortgageStartTime;
 		uint256 pledge;
 		address owner;
 	}
@@ -28,7 +28,7 @@ interface INodes {
 
 	function exit(uint256 nodeId, uint256 burned) external;
 
-	function mortgageEndBlock(uint256 nodeId) external view returns(uint256);
+	function mortgageEndTime(uint256 nodeId) external view returns(uint256);
 
 	function exists(uint256 nodeId) external view returns (bool);
 

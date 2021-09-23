@@ -15,12 +15,8 @@ abstract contract NodeController is INodeController, Ownable {
 	INodeLending public lending;
 
 	function setInterface(INodes nodes_, INodeLending lending_) external onlyOwner {
-		if (address(nodes) == address(0)) {
-			nodes = nodes_;
-		}
-		if (address(lending) == address(0)) {
-			lending = lending_;
-		}
+		nodes = nodes_;
+		lending = lending_;
 	}
 
 	function addNode(uint256 nodeId, uint256 period, bytes32 region) external override onlyOwner {
@@ -38,18 +34,18 @@ abstract contract NodeController is INodeController, Ownable {
 		uint256 leftPledge = nodes.get(nodeId).pledge;
 		if (loan >= leftPledge) {
 			nodes.exit(nodeId, leftPledge);
-			lending.mortgageEnd(nodeId);
+			lending.mortgageExit(nodeId);
 		}
 	}
 
 	function exitNode(uint256 nodeId) external override {
 		address owner = nodes.ownerOf(nodeId);
-		require(msg.sender == owner || nodes.mortgageEndBlock(nodeId) < block.number, 'NodeController: can not exit.');
+		require(msg.sender == owner || nodes.mortgageEndTime(nodeId) < block.timestamp, 'NodeController: can not exit.');
 		uint256 loan = lending.realisedLoans(owner, nodeId);
 		uint256 pledge = nodes.get(nodeId).pledge;
 		require(pledge >= loan, 'NodeController: not enough pledge to pay loan.');
 		nodes.exit(nodeId, loan);
-		lending.mortgageEnd(nodeId);
+		lending.mortgageExit(nodeId);
 	}
 
 }
