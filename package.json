@@ -79,7 +79,7 @@
 		"moonbase:export": "hardhat --network moonbase export --export exports/moonbase.json",
 		"arbitrum:deploy": "hardhat --network arbitrum deploy",
 		"arbitrum:export": "hardhat --network arbitrum export --export exports/arbitrum.json",
-		"prepare": "hardhat typechain",
+		"prepare": "yarn build && hardhat typechain",
 		"prettier": "prettier --list-different 'contracts/**/*.sol'",
 		"prettier:fix": "prettier --write 'contracts/**/*.sol'",
 		"lint": "eslint \"**/*.{js,ts}\" && solhint contracts/**/*.sol",
