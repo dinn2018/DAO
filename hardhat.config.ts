@@ -6,7 +6,7 @@ import '@typechain/hardhat'
 import { HardhatUserConfig } from 'hardhat/types'
 
 if (process.env.NODE_ENV !== 'build') {
-	require('./tasks')
+	import('./tasks')
 }
 
 if (process.env.HARDHAT_FORK) {
