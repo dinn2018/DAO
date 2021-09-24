@@ -72,7 +72,7 @@ contract Stake is Ownable {
 	}
 
 	function apy() public view returns (uint256) {
-		return U().mul(m()).add(b()).div(numerator());
+		return U().mul(m()).add(b()).div(decimals());
 	}
 
 	function U() public view returns (uint256) {
@@ -80,19 +80,19 @@ contract Stake is Ownable {
 			return 0;
 		}
 		if (totalLoans() > totalDeposits) {
-			return numerator();
+			return decimals();
 		}
-		return totalLoans().mul(numerator()).div(totalDeposits);
+		return totalLoans().mul(decimals()).div(totalDeposits);
 	}
 
 	function m() public view returns (uint256) {
 		uint256 u = U();
-		if (u < numerator().mul(5)) {
-			return uint256(4).mul(numerator()).div(10);
-		} else if (u < numerator().mul(9)) {
+		if (u < decimals().mul(5)) {
+			return uint256(4).mul(decimals()).div(10);
+		} else if (u < decimals().mul(9)) {
 			return 0;
 		} else {
-			uint256 dot1 = numerator().div(10);
+			uint256 dot1 = decimals().div(10);
 			uint256 dot2 = dot1.mul(2);
 			return rmax().sub(dot2).div(dot1);
 		}
@@ -100,10 +100,10 @@ contract Stake is Ownable {
 
 	function b() public view returns (uint256) {
 		uint256 u = U();
-		if (u < numerator().mul(5)) {
+		if (u < decimals().mul(5)) {
 			return 0;
-		} else if (u < numerator().mul(9)) {
-			return uint256(2).mul(numerator()).div(10);
+		} else if (u < decimals().mul(9)) {
+			return uint256(2).mul(decimals()).div(10);
 		} else {
 			return m().sub(rmax());
 		}
@@ -113,7 +113,7 @@ contract Stake is Ownable {
 		require(deposits[to].lastUpdateTime != 0, 'AuctionLending: invalid deposit time.');
 		require(block.timestamp > deposits[to].lastUpdateTime, 'AuctionLending: past block.');
 		uint256 interval = block.timestamp.sub(deposits[to].lastUpdateTime);
-		amount = deposits[to].amount.mul(apy()).mul(interval).div(numerator()).div(365 days);
+		amount = deposits[to].amount.mul(apy()).mul(interval).div(decimals()).div(365 days);
 	}
 
 	function availableReward(address to) public view returns (uint256) {
@@ -124,8 +124,8 @@ contract Stake is Ownable {
 		return lending.totalLoans();
 	}
 
-	function numerator() public view returns (uint256) {
-		return params.NUMERATOR();
+	function decimals() public view returns (uint256) {
+		return params.RDECIMALS();
 	}
 
 	function rmax() public view returns (uint256) {

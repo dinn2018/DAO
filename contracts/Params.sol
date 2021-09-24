@@ -13,7 +13,7 @@ abstract contract Params is Ownable, IParams {
 
 	uint256 public override RMAX = 15e11;
 
-	uint256 public override NUMERATOR = 1e12;
+	uint256 public override RDECIMALS = 1e12;
 
 	function setPerSecReward(uint256 perSecReward_) external onlyOwner {
 		perSecReward = perSecReward_;

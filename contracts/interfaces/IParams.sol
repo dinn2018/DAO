@@ -6,7 +6,7 @@ interface IParams  {
 
 	function RMAX() external view returns (uint256);
 
-	function NUMERATOR() external view returns (uint256);
+	function RDECIMALS() external view returns (uint256);
 
 	function perSecReward() external view returns (uint256);
 

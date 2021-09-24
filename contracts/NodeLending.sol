@@ -87,7 +87,7 @@ contract NodeLending is INodeLending, Ownable {
 	function maxLoan(address to, uint256 nodeId) public view returns (uint256) {
 		uint256 amount = mortgages[to][nodeId];
 		uint256 rewardInPeriod = controller.perSecReward().mul(nodes.get(nodeId).meta.period);
-		return rewardInPeriod.add(amount).div(controller.RMAX()).mul(controller.NUMERATOR());
+		return rewardInPeriod.add(amount).mul(controller.RDECIMALS()).div(controller.RMAX());
 	}
 
 	modifier validataNode(uint256 nodeId) {

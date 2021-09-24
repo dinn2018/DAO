@@ -19,10 +19,7 @@ task('stake:apy')
 	.setAction(async (args: any, env: HardhatRuntimeEnvironment) => {
 		const stake = await Stake(env)
 		const apy = await stake.apy()
-		const u = await stake.U()
-		const m = await stake.m()
-		const b = await stake.b()
-		console.log('apy', u, m, b, apy)
+		console.log('apy', apy)
 	})
 
 task('stake:totalLoans')
